@@ -2,7 +2,12 @@
 
 namespace App\Facades\Routing;
 
+use App\Controllers\Controller;
+use App\Exceptions\CantResolveDependenciesException;
+use App\Exceptions\MethodNotAllowedException;
 use App\Exceptions\UndefinedMethodException;
+use App\Facades\Http\Request;
+use App\Facades\Http\Response;
 
 /**
  * @method static Route get(string $uri, array $action)
@@ -33,7 +38,11 @@ class Route
     /** @var array */
     protected $action;
 
+    /** @var array */
     protected $routeParams = [];
+
+    /** @var Request */
+    protected $request;
 
     /**
      * @param string $method
@@ -68,6 +77,11 @@ class Route
         return $this;
     }
 
+    /**
+     * @param array $params
+     *
+     * @return $this
+     */
     public function setRouteParams(array $params): self
     {
         $this->routeParams = array_merge($this->routeParams, $params);
@@ -151,5 +165,84 @@ class Route
         return (new self)->setMethod($name)
             ->setUri($arguments[0])
             ->setAction($arguments[1]);
+    }
+
+    /**
+     * @param Request $request
+     *
+     * @return $this
+     */
+    public function setRequest(Request $request): self
+    {
+        $this->request = $request;
+        return $this;
+    }
+
+    /**
+     * @throws UndefinedMethodException
+     * @throws \ReflectionException|CantResolveDependenciesException
+     */
+    public function handle(): Response
+    {
+        if (count($this->action) !== 2 || ! class_exists($this->action[0])) {
+            throw new \InvalidArgumentException('Invalid route action');
+        }
+
+        if (! method_exists($this->action[0], $this->action[1])) {
+            throw new UndefinedMethodException('Undefined method: ' . $this->action[1] . '()');
+        }
+
+        try {
+            $reflectionClass = new \ReflectionClass($this->action[0]);
+            $reflectionConstructor = $reflectionClass->getConstructor();
+            $reflectionMethod = $reflectionClass->getMethod($this->action[1]);
+
+            $classConstructorParams = [];
+            if ($reflectionConstructor) {
+                foreach ($reflectionConstructor->getParameters() as $item) {
+                    $classParam = $item->getClass()->getName();
+                    $classConstructorParams[] = new $classParam();
+                }
+            }
+            $class = new $this->action[0](...$classConstructorParams);
+
+            $methodParams = [];
+            foreach ($reflectionMethod->getParameters() as $item) {
+                $typeParam = $item->getClass();
+                if ($typeParam) {
+                    $typeParam = $typeParam->getName();
+                }
+                $nameParam = $item->getName();
+                if ($typeParam === Request::class) {
+                    $methodParams[] = $this->request;
+                    continue;
+                }
+                if (class_exists($typeParam) || array_key_exists($nameParam, $this->routeParams)) {
+                    $methodParams[] = class_exists($typeParam)
+                        ? new $typeParam()
+                        : $this->routeParams[$nameParam] ?? null;
+                } else if ($item->isDefaultValueAvailable()) {
+                    $methodParams[] = $item->getDefaultValue();
+                } else {
+                    throw new \InvalidArgumentException('Invalid method params');
+                }
+            }
+        } catch (\Exception $exception) {
+            throw new CantResolveDependenciesException($exception->getMessage(), $exception->getCode(), $exception);
+        }
+
+        if ($class instanceof Controller) {
+            $class->setRequest($this->request)
+                ->authorize()
+                ->validate();
+        }
+
+        $response = $reflectionMethod->invokeArgs($class, $methodParams);
+
+        if ($response instanceof Response) {
+            return $response;
+        }
+
+        return new Response([], Response::HTTP_NO_CONTENT, [Response::CONTENT_TYPE_JSON]);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Facades\Routing;
 
 use App\Exceptions\MethodNotAllowedException;
 use App\Facades\Http\Request;
+use App\Facades\Http\Response;
 use App\Support\Arr;
 
 class Router
@@ -33,7 +34,7 @@ class Router
 
         /** @var Route $route */
         foreach ($routes as $route) {
-            $this->routes[$route->getMethod()][] = $route;
+            $this->routes[strtoupper($route->getMethod())][] = $route;
         }
     }
 
@@ -49,12 +50,12 @@ class Router
     }
 
     /**
-     * @return string
+     * @return Response
      * @throws MethodNotAllowedException
      */
-    public function handle(): string
+    public function handle(): Response
     {
-        return $this->getRouteByRequest()->setRequest($this->request)->exec();
+        return $this->getRouteByRequest()->setRequest($this->request)->handle();
     }
 
     /**
@@ -63,7 +64,7 @@ class Router
      */
     protected function getRouteByRequest(): Route
     {
-        $routesForCurrentMethod = $this->routes[$this->request->getMethod()] ?? [];
+        $routesForCurrentMethod = $this->routes[strtoupper($this->request->getMethod())] ?? [];
 
         $requestUri = trim($this->request->getUri(), '/');
 
@@ -77,12 +78,15 @@ class Router
                 return $route;
             } elseif (preg_match_all('/{([[:alnum:]_-]+)}/', $routeUri, $matches)) {
                 $routeParams = $matches[1];
-                $routePattern = preg_replace('/{([[:alnum:]_-]+)}/', '(?<$1>[[:alnum:]_-]+)', $routeUri);
+                $routePattern = preg_replace(
+                    '/{([[:alnum:]_-]+)}/', '(?<$1>[[:alnum:]_-]+)',
+                    $routeUri
+                );
                 if (
-                    preg_match('/^' . $routePattern . '$/', $requestUri, $matches)
-                    && count($routeParams) === count($matches) - 1
+                    preg_match('~^' . $routePattern . '$~', $requestUri, $matches)
+                    && count($routeParams) === count($params = Arr::only($matches, $routeParams))
                 ) {
-                    $route->setRouteParams(array_combine($routeParams, array_slice($matches, 1)));
+                    $route->setRouteParams($params);
                     return $route;
                 }
             }
