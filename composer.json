@@ -1,0 +1,20 @@
+{
+    "name": "soulless/test-skelar-2023-06-17",
+    "description": "Test task from SKELAR",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Soulless",
+            "email": "lubinsoulless@gmail.com"
+        }
+    ],
+    "require": {
+        "ext-json": "*",
+        "ext-curl": "*"
+    }
+}
