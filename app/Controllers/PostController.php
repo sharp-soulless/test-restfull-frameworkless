@@ -6,18 +6,24 @@ use App\Exceptions\UnauthorizedException;
 use App\Facades\Http\Request;
 use App\Facades\Http\Response;
 use App\Repositories\PostRepository;
+use App\Repositories\UserRepository;
 
 class PostController extends Controller
 {
     /** @var PostRepository */
     protected $repository;
 
+    /** @var UserRepository */
+    protected $userRepository;
+
     /**
      * @param PostRepository $repository
+     * @param UserRepository $userRepository
      */
-    public function __construct(PostRepository $repository)
+    public function __construct(PostRepository $repository, UserRepository $userRepository)
     {
         $this->repository = $repository;
+        $this->userRepository = $userRepository;
     }
 
     /**
@@ -32,7 +38,10 @@ class PostController extends Controller
             ! isset($authData['user'], $authData['password'])
             || (
                 isset($authData['user'], $authData['password'])
-                && $authData['user'] !== $authData['password']
+                && password_verify(
+                    $authData['password'],
+                    $this->userRepository->findByUsername($authData['user'])->password
+                )
             )
         ) {
             throw new UnauthorizedException();
