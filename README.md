@@ -2,6 +2,15 @@
 
 ## How to run the program
 
+### Generate autoload files
+
+Run the following command in the root directory of the project for generate autoload files
+```bash
+composer dump-autoload
+```
+
+### Run server
+
 Run the following command in the root directory of the project
 ```bash
 php -S localhost:8000
