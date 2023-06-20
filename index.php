@@ -36,7 +36,7 @@ try {
     $response = new Response(
         [
             'message' => $exception->getCode() > 499
-                ? $exception->getMessage()//'Server error'
+                ? 'Server error'
                 : $exception->getMessage()
         ],
         $exception->getCode() > 499

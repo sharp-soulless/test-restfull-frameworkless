@@ -38,7 +38,7 @@ class PostController extends Controller
             ! isset($authData['user'], $authData['password'])
             || (
                 isset($authData['user'], $authData['password'])
-                && password_verify(
+                && ! password_verify(
                     $authData['password'],
                     $this->userRepository->findByUsername($authData['user'])->password
                 )
